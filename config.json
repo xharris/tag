@@ -1,0 +1,61 @@
+{
+    "write_conf": true,
+    "profiling_level": 0,
+    "ico": "src\\logo.ico",
+    "icns": "src\\logo.icns",
+    "game_size": 3,
+    "window_size": 3,
+    "autoplay_preview": true,
+    "engine": "love2d",
+    "scene": {},
+    "export": {
+        "name": "tag",
+        "filter": "linear",
+        "scale": true,
+        "vsync": "on",
+        "round_pixels": true
+    },
+    "enabled_plugins": {},
+    "imageeditor": {
+        "image/bird_stand_front.png": {
+            "frame_size": [
+                33,
+                32
+            ],
+            "frames": 1,
+            "position": [
+                0,
+                0
+            ],
+            "spacing": 0,
+            "onion_alpha": 0.3,
+            "image": "image/bird_walk_front.png"
+        },
+        "image/bird_walk_front.png": {
+            "frame_size": [
+                64,
+                32
+            ],
+            "frames": 1,
+            "position": [
+                0,
+                0
+            ],
+            "spacing": 0,
+            "onion_alpha": 0.3
+        },
+        "image/bird_walk_back.png": {
+            "frame_size": [
+                64,
+                32
+            ],
+            "frames": 1,
+            "position": [
+                0,
+                0
+            ],
+            "spacing": 0,
+            "onion_alpha": 0.3
+        }
+    }
+}
