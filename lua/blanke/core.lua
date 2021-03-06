@@ -164,6 +164,7 @@ do
         end
 
         Save.load()
+        World.init()
       end
 
       if not Game.loaded.assets and which == "assets" or not which then
@@ -228,8 +229,6 @@ do
       end
 
       if not Game.loaded.settings and which == "settings" or not which then
-        Scene.init()
-
         -- fullscreen toggle
         Input.set(
           {_fs_toggle = {"alt", "enter"}},

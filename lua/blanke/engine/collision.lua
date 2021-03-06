@@ -19,7 +19,7 @@ System(All("Hitbox"),{
   update = function(ent, dt)
     local t, hb = ent.Transform, ent.Hitbox
     local tx, ty = t:getWorldTranslate()
-    local actualx, actualy, cols, len = world:move(ent.Hitbox, tx+hb.ox, ty+hb.oy)
+    local actualx, actualy, cols, len = world:move(hb, tx+hb.ox, ty+hb.oy)
     if len > 0 then 
       -- print('colliding', world:getRect(hb))
     end 

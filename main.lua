@@ -12,7 +12,7 @@ Game{
     resizable = true
   },
   load = function()
-    --Scene.addChild(Bird())
+    Scene.addChild(Bird())
     Entity{
       Transform = { x=Game.width/2, y=Game.height/2 },
       Hitbox = { w=50, h=300 }

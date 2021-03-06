@@ -38,7 +38,9 @@ Entity = callable {
     for name, prop in pairs(props) do 
       Add(props, name, prop)
     end
-    return Node(props)
+    local node = Node(props)
+    Scene.addChild(node)
+    return node
   end,
   get = function(uuid)
     return entities[uuid]
@@ -204,6 +206,9 @@ end
 
 --WORLD
 World = {
+  init = function()
+    Scene.init()
+  end,
   add = function(ent, args) 
     Add(ent)
     return ent 
@@ -219,13 +224,13 @@ World = {
       end 
     end 
     dead_entities = {}
+    Scene.update(dt)
     -- added entities 
     for n = 1, table.len(new_entities) do 
       ent = entities[new_entities[n]]
       call_sys_add(ent)
     end 
     new_entities = {}
-    Scene.update(dt)
     -- update systems
     local g_time = floor(Game.time * 1000)
     for s = 1, table.len(systems) do 
@@ -309,36 +314,43 @@ Node = callable {
   from = function(node)
     if not node.uuid then node.uuid = uuid() end 
     if not node.children then node.children = {} end 
-    nodes[node.uuid] = node
+    if not nodes[node.uuid] then 
+      nodes[node.uuid] = node
 
-    node.addChild = function(...)
-      for c = 1,select('#', ...) do 
-        local child = select(c, ...)
-        Node.from(child)
-        -- add child uuid to children table
-        if not table.includes(node.children, child.uuid) then 
-          table.insert(node.children, child.uuid)
-        end 
-        child.parent = node
-      end
-      return node
-    end
-
-    node.removeChild = function(...)
-      for _, child in ipairs({...}) do 
-        if child.parent and child.parent.uuid == node.uuid then
-          -- remove child uuid from children table
-          table.filter(child.parent.children, function(c)
-            return c ~= child.uuid
-          end)
+      node.addChild = function(...)
+        for c = 1,select('#', ...) do 
+          local child = select(c, ...)
+          if not child.RootNode then 
+            Node.from(child)
+            if child.parent then 
+              child.parent.removeChild(child)
+            end 
+            -- add child uuid to children table
+            if not table.includes(node.children, child.uuid) then 
+              table.insert(node.children, child.uuid)
+            end 
+            child.parent = node
+          end
         end
-      end 
-    end
+        return node
+      end
 
-    AddImmediate(node, "Transform")
-    if node.drawable then 
-      Add(node, "Draw")
-    end
+      node.removeChild = function(...)
+        for _, child in ipairs({...}) do 
+          if child.parent and child.parent.uuid == node.uuid then
+            -- remove child uuid from children table
+            table.filter(child.parent.children, function(c)
+              return c ~= child.uuid
+            end)
+          end
+        end 
+      end
+
+      AddImmediate(node, "Transform")
+      if node.drawable then 
+        Add(node, "Draw")
+      end
+    end 
 
     return node
   end
@@ -387,7 +399,9 @@ Scene = callable {
     end 
   end,
   addChild = function(...)
-    return Scene.node.addChild(...)
+    if Scene.node then 
+      return Scene.node.addChild(...)
+    end
   end,
   update = function(dt, node)
     if not node then 
