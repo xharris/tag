@@ -1,17 +1,41 @@
-Entity{
-  "Gun",
-  image = "gun.png",
-  align = "left center",
-  pos = { 0, 0 },
-  update = function(self)
-    if self.bird then 
-      self.scalex = self.bird.scalex
-      self.pos = {
-        self.bird.pos[1] + (6 * self.scalex),
-        self.bird.pos[2] + 5
+System(All("Gun"), {
+  added = function(ent)
+    ent.Gun = Entity{
+      Image = "gun.png",
+      Transform = { x=5, oy=3.5 },
+      FaceMouse = { entity=ent, rotate=true }
+    }
+    ent.addChild(ent.Gun)
+  end,
+  update = function(ent, dt)
+    ent.Gun.z = ent.FaceMouse.vert == "up" and 10 or -10
+    -- shooting 
+    if Input.released("primary") then 
+      local angle = ent.Gun.FaceMouse.angle
+      local tx, ty = ent.Transform:getWorldTranslate()
+      local vx, vy = Math.getXY(angle, 600)
+      
+      local bullet = Entity{
+        z = -20,
+        Transform = { x=tx, y=ty, ox=-1, oy=3.5, angle=angle },
+        Velocity = { x=vx, y=vy },
+        Image = "bullet.png",
+        DestroyAfterTime = { time=0.5 }
       }
-      self.z = self.bird.z + 20 * (self.bird.facing_up and 1 or -1)
-      self.angle = Math.angle(self.pos[1], self.pos[2], mouse_x, mouse_y) + (self.bird.facing_left and 135 or 0)
+      Scene.addChild(bullet)
     end 
   end
-}
+})
+
+System(All("DestroyAfterTime"),{
+  added = function(ent)
+    ent.DestroyAfterTime.t = 0
+  end,
+  update = function(ent, dt)
+    local dat = ent.DestroyAfterTime
+    dat.t = dat.t + dt 
+    if dat.t > dat.time then 
+      Destroy(ent)
+    end 
+  end
+})
