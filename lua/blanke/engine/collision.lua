@@ -1,5 +1,5 @@
 local bump = blanke_require("bump")
-local word 
+local world 
 
 Component("Hitbox", { w=32, h=32, ox=0, oy=0, filter=nil })
 System(All("Hitbox"),{
@@ -8,11 +8,13 @@ System(All("Hitbox"),{
       world = bump.newWorld()
     end 
     local hb, t = ent.Hitbox, ent.Transform
-    local tx, ty = t:getWorldTranslate()
-    print('add',tx+hb.ox, ty+hb.oy, t.x,t.y,hb.w, hb.h)
-    world:add(hb, tx+hb.ox, ty+hb.oy, hb.w, hb.h)
-    hb.drawable = function(self)
-      Draw.rect("line", world:getRect(self))
+    local tx, ty = t:toLocal(t.ox, t.oy)
+    world:add(hb, tx-hb.ox, ty-hb.oy, hb.w, hb.h)
+    -- hb.drawable = function(self)
+    --   Draw.rect("line", world:getRect(self))
+    -- end
+    hb.getRect = function(self)
+      return world:getRect(self)
     end
     Scene.addChild(hb)
   end
@@ -31,10 +33,11 @@ end
 System(All("Hitbox", Some("Velocity")), {
   update = function(ent, dt)
     local t, hb, v = ent.Transform, ent.Hitbox, ent.Velocity
-    local tx, ty = t:getWorldTranslate()
+    local tx, ty = t:toLocal(t.ox, t.oy)
+    -- print(tx+hb.ox, ty+hb.oy)
 
     if v then 
-      local actualx, actualy, cols, len = world:move(hb, tx+hb.ox+v.x*dt, ty+hb.oy+v.y*dt, filter)
+      local actualx, actualy, cols, len = world:move(hb, tx-hb.ox+v.x*dt, ty-hb.oy+v.y*dt, filter)
       if len > 0 then 
         local col
         for c=1,len do 
@@ -57,21 +60,13 @@ System(All("Hitbox", Some("Velocity")), {
         end 
       end 
     else 
-      local actualx, actualy, cols, len = world:move(hb, tx+hb.ox, ty+hb.oy, filter)
+      local actualx, actualy, cols, len = world:move(hb, tx-hb.ox, ty-hb.oy, filter)
+      if len > 0 then 
+        -- print('colliding', world:getRect(hb))
+        -- t.x = actualx
+        -- t.y = actualy
+      end 
     end
-  end
-})
-
-System(All("Hitbox", Not("Velocity")), {
-  update = function(ent, dt)
-    local t, hb = ent.Transform, ent.Hitbox
-    local tx, ty = t:getWorldTranslate()
-    local actualx, actualy, cols, len = world:move(hb, tx+hb.ox, ty+hb.oy)
-    if len > 0 then 
-      -- print('colliding', world:getRect(hb))
-      -- t.x = actualx
-      -- t.y = actualy
-    end 
   end
 })
 

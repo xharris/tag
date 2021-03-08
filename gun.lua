@@ -20,7 +20,7 @@ System(All("Gun", "FaceMouse"), {
         Transform = { x=tx, y=ty, ox=9, oy=3.5, angle=angle },
         Velocity = { x=vx, y=vy },
         Image = "bullet.png",
-        Hitbox = { w=7, h=7, tag="Bullet" }
+        Hitbox = { w=7, h=7, ox=3.5, oy=3.5, tag="Bullet" }
       }
       Scene.addChild(bullet)
     end 

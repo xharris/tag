@@ -28,7 +28,6 @@ local component_templates = {}
 local entity_order = {}
 
 local sys_properties = {'added','update','removed','draw','order','dt_mod'}
-local sys_tform
 
 Component = function(name, template)
   template._name = name
@@ -375,6 +374,12 @@ Node = callable {
       t._transform = love.math.newTransform()
       t._world = love.math.newTransform()
       -- TODO may need to recalculate to compensate for shear (affine tformation)
+      t.toLocal = function(self, x, y)
+        return self._transform:transformPoint(x, y)
+      end
+      t.toGlobal = function(self, x, y)
+        return self._transform:inverseTransformPoint(x, y)
+      end
       t.getWorldTranslate = function(t)
         local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
         return d, h, l
@@ -399,22 +404,22 @@ Node = callable {
 local draw_node = function(node, transform)
   local lg = love.graphics
   if node.drawable then 
+    lg.push('all') 
     if not node.Draw then Add(node, "Draw") end 
 
     if type(node.drawable) == 'function' then 
-      lg.push()
       if transform then 
         lg.applyTransform(transform._transform)
       end 
       node:drawable()
-      lg.pop()
     else
       if node.quad then 
         lg.draw(node.drawable, node.quad, transform and transform._transform)
       else
         lg.draw(node.drawable, transform and transform._transform)
       end
-    end
+    end 
+    lg.pop()
   end
 end
 
@@ -515,26 +520,26 @@ Scene = callable {
         if not node.RootNode then 
           lg.applyTransform(node.Transform._transform)
         end
-        if head_hovered then 
-          Draw.push()
-          Draw.color('red')
-          Draw.line(-20,-20,20,20)
-          Draw.line(-20,20,20,-20)
-          Draw.pop()
-        end
+        -- if head_hovered then 
+        --   Draw.push()
+        --   Draw.color('red')
+        --   Draw.line(-20,-20,20,20)
+        --   Draw.line(-20,20,20,-20)
+        --   Draw.pop()
+        -- end
         local child 
         for c, cuuid in ipairs(node.children) do 
           child = nodes[cuuid]
           if child then 
             if Scene.draw(child, head_open and children_open) then   
-              -- imgui.TreePop()
+              imgui.TreePop()
             end
           end
         end 
         lg.pop()
-        if children_open then 
-          -- imgui.TreePop()
-        end
+        -- if children_open then 
+        --   imgui.TreePop()
+        -- end
 
         -- sort z indexes? 
         if node._needs_sort then 
@@ -551,7 +556,7 @@ Scene = callable {
 Component("Transform", { x=0, y=0, angle=0, sx=1, sy=1, ox=0, oy=0, kx=0, ky=0 })
 Component("Draw", { color={1,1,1,1}, blendmode={'alpha'} })
 
-sys_tform = System(All("Transform"), {
+System(All("Transform"), {
   order = System.order.pre-1,
   update = function(ent, dt)
     local t = ent.Transform

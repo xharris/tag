@@ -6,6 +6,6 @@ Bird = function(is_player)
     FaceMouse = { sx=true },
     Gun = {},
     BirdSprite = {},
-    Hitbox = { ox=-16, oy=-16, tag="Bird" }
+    Hitbox = { ox=16, oy=16, tag="Bird" }
   }
 end

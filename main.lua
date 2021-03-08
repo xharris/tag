@@ -33,3 +33,20 @@ Game{
     }
   end
 }
+
+System(All("Rotate"), {
+  update = function(ent, dt)
+    ent.Transform.angle = ent.Transform.angle + ent.Rotate * dt
+  end
+})
+
+System(All("Hitbox"),{
+  added = function(ent)
+    if ent.Hitbox.tag == "Wall" then 
+      ent.Hitbox.drawable = function(self)
+        Draw.color("black2")
+        Draw.rect("fill", self:getRect())
+      end
+    end
+  end
+})
