@@ -1,4 +1,4 @@
-System(All("Gun"), {
+System(All("Gun", "FaceMouse"), {
   added = function(ent)
     ent.Gun = Entity{
       Image = "gun.png",
@@ -17,10 +17,10 @@ System(All("Gun"), {
       
       local bullet = Entity{
         z = -20,
-        Transform = { x=tx, y=ty, ox=-1, oy=3.5, angle=angle },
+        Transform = { x=tx, y=ty, ox=9, oy=3.5, angle=angle },
         Velocity = { x=vx, y=vy },
         Image = "bullet.png",
-        DestroyAfterTime = { time=0.5 }
+        Hitbox = { w=7, h=7, tag="Bullet" }
       }
       Scene.addChild(bullet)
     end 

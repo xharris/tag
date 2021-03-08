@@ -22,13 +22,17 @@ local entity_templates = {} -- TODO: reimplement?
 local entity_callable = {}
 local spawn
 
+local is_component = {}
 local component_templates = {}
 
 local entity_order = {}
 
 local sys_properties = {'added','update','removed','draw','order','dt_mod'}
+local sys_tform
 
 Component = function(name, template)
+  template._name = name
+  is_component[name] = true
   component_templates[name] = template
 end
 
@@ -85,6 +89,42 @@ System = callable {
   end
 }
 
+function print_query(q, depth)
+  local first = depth == nil
+  local str = q.type..'('
+  if first then 
+    str = "Query\t"..str
+  end 
+  for a, arg in ipairs(q.args) do 
+    if type(arg) == 'table' then 
+      str = str..print_query(arg, depth == nil and 0 or depth + 1)
+    else 
+      str = str..arg
+    end 
+    if a < #q.args then 
+      str = str..', '
+    end 
+  end
+  str = str..')'
+  if first then
+    print(str)
+  end
+  return str
+end
+
+function print_entity(ent)
+  local str = "Entity\t"..ent.uuid..' {'
+  local props = {}
+  for k, v in pairs(ent) do 
+    if is_component[k] then 
+      table.insert(props, k)
+    end 
+  end
+  str = str..table.join(props, ',')..'}'
+  print(str)
+  return str
+end
+
 All = function(...) return { type="all", args={...} } end
 Some = function(...) return { type="some", args={...} } end
 Not = function(...) return { type="not", args={...} } end
@@ -92,6 +132,7 @@ One = function(...) return { type="one", args={...} } end
 
 Test = function(query, obj, _not) 
   if type(query) == "string" then
+    is_component[query] = true
     if (_not and obj[query] == nil) or (not _not and obj[query] ~= nil)  then 
       return true 
     end
@@ -118,15 +159,29 @@ Test = function(query, obj, _not)
   end 
 end 
 
+call_sys_add = function(ent)
+  for i = 1, table.len(systems) do 
+    sys = systems[i]
+    if not sys.has_entity[ent.uuid] and Test(sys.query, ent) then
+      sys.has_entity[ent.uuid] = true
+      -- entity fits in this system
+      table.insert(sys.entities, ent.uuid)
+      if sys.cb.added then 
+        sys.cb.added(ent) 
+      end 
+    end 
+  end 
+end
+
 local _Add
-_Add = function (ent, k, v) 
+_Add = function (ent, k) 
   -- add new entity
   if not ent.uuid then 
     ent.uuid = uuid()
   end 
   entities[ent.uuid] = ent
   -- make sure component has all default properties
-  if k or v then 
+  if k then 
     if component_templates[k] ~= nil then
       if not ent[k] then 
         ent[k] = copy(component_templates[k])
@@ -139,15 +194,11 @@ _Add = function (ent, k, v)
 end 
 
 function Add(ent, k, v)
-  _Add(ent, k, v)
+  ent[k] = v or ent[k]
+  _Add(ent, k)
   if not table.includes(new_entities, ent.uuid) then 
     table.insert(new_entities, ent.uuid)
   end 
-end
-
-function AddImmediate(ent, k, v)
-  _Add(ent, k, v)
-  call_sys_add(ent)
 end
 
 local remove_prop = {}
@@ -172,37 +223,6 @@ function Destroy(ent)
   --nodes[ent.uuid] = nil
 end 
 
-local check_sub_entities
-check_sub_entities = function(ent, checked)
-  if not checked then checked = {} end
-  if checked and checked[ent] then return end 
-  for k,v in pairs(ent) do 
-    if type(v) == 'table' then 
-      if v._new and entity_callable[v._new] then 
-        -- found a sub-entity
-        if v.args.child == true then 
-          v.args.parent = ent
-        end 
-        ent[k] = entity_callable[v._new](v.args)
-      else 
-        checked[v] = true
-        check_sub_entities(v, checked)
-      end 
-    end 
-  end
-end
-
-call_sys_add = function(ent)
-  for i = 1, table.len(systems) do 
-    sys = systems[i]
-    if not sys.has_entity[ent.uuid] and Test(sys.query, ent) then
-      sys.has_entity[ent.uuid] = true
-      -- entity fits in this system
-      table.insert(sys.entities, ent.uuid)
-      if sys.cb.added then sys.cb.added(ent, args) end 
-    end 
-  end 
-end
 
 --WORLD
 World = {
@@ -225,13 +245,13 @@ World = {
     end 
     dead_entities = {}
     Scene.update(dt)
-    -- added entities 
-    for n = 1, table.len(new_entities) do 
-      ent = entities[new_entities[n]]
+    -- added entities
+    local new_entities_copy = {unpack(new_entities)}
+    new_entities = {}
+    for n = 1, table.len(new_entities_copy) do 
+      ent = entities[new_entities_copy[n]]
       call_sys_add(ent)
     end 
-    new_entities = {}
-    -- update systems
     local g_time = floor(Game.time * 1000)
     for s = 1, table.len(systems) do 
       sys = systems[s]
@@ -346,10 +366,29 @@ Node = callable {
         end 
       end
 
-      AddImmediate(node, "Transform")
+      Add(node, "Transform")
       if node.drawable then 
         Add(node, "Draw")
       end
+
+      local t = node.Transform
+      t._transform = love.math.newTransform()
+      t._world = love.math.newTransform()
+      -- TODO may need to recalculate to compensate for shear (affine tformation)
+      t.getWorldTranslate = function(t)
+        local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
+        return d, h, l
+      end
+      t.getWorldScale = function(t)
+        local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
+        local sqrt = math.sqrt
+        return sqrt((a*a)+(e*e)+(i*i)), sqrt((b*b)+(f*f)+(j*j)), sqrt((c*c)+(g*g)+(k*k))
+      end
+      t._transform:setTransformation(
+        floor(t.x), floor(t.y), t.angle, 
+        t.sx, t.sy, t.ox, t.oy,
+        t.kx, t.ky
+      )
     end 
 
     return node
@@ -403,10 +442,10 @@ Scene = callable {
       return Scene.node.addChild(...)
     end
   end,
-  update = function(dt, node)
+  update = function(dt, node, depth)
     if not node then 
-      Scene.update(dt, Scene.node)
-    else   
+      Scene.update(dt, Scene.node, 0)
+    else  
       if node.children then 
         local child 
         for c, cuuid in ipairs(node.children) do 
@@ -416,40 +455,86 @@ Scene = callable {
             child.Transform._world:apply(node.Transform._world)
           end
           child.Transform._world:apply(child.Transform._transform)
-          Scene.update(dt, child)
+          Scene.update(dt, child, depth + 1)
         end 
       end 
     end 
   end,
-  draw = function(node)
+  draw = function(node, prev_open)
     if not node then 
       if Scene.node then 
+        -- imgui.Begin("Entities")
         Scene.canvas:renderTo(function()
           Scene.draw(Scene.node, true)
         end)
         local t = Scene.node.Transform
         draw_node(Scene.canvas, Scene.node.Transform)
+        -- imgui.End()
       end
     else 
+      local lg = love.graphics
       -- draw this node?
       if not node.RootNode then
         check_z(node)
         draw_node(node, node.Transform)
       end
+      
+      -- local head_open, children_open, head_hovered
+      -- if prev_open then
+      --   local title = node.uuid 
+      --   if node._name then 
+      --     title = node._name .. " - " .. title
+      --   end
+      --   head_open = imgui.TreeNode(title)
+      --   head_hovered = imgui.IsItemHovered()
+      --   if head_open then
+      --     if imgui.TreeNode("components") then 
+      --       for k,v in pairs(node) do 
+      --         if k ~= "children"  then
+      --           if k == "parent" then
+      --             imgui.Text(k.." = "..v.uuid)
+      --           elseif imgui.TreeNode(k) then 
+      --             for k, v in pairs(v) do 
+      --               imgui.Text(k..' = '..tostring(v))
+      --             end
+      --             imgui.TreePop()
+      --           end
+      --         end
+      --       end 
+      --       imgui.TreePop()
+      --     end
+      --     if node.children and #node.children > 0 then 
+      --       children_open = imgui.TreeNode("children") 
+      --     end
+      --   end
+      -- end
+
       -- iterate children
       if node.children and node.Transform._transform then 
-        love.graphics.push()
+        lg.push()
         if not node.RootNode then 
-          love.graphics.applyTransform(node.Transform._transform)
+          lg.applyTransform(node.Transform._transform)
+        end
+        if head_hovered then 
+          Draw.push()
+          Draw.color('red')
+          Draw.line(-20,-20,20,20)
+          Draw.line(-20,20,20,-20)
+          Draw.pop()
         end
         local child 
         for c, cuuid in ipairs(node.children) do 
           child = nodes[cuuid]
           if child then 
-            Scene.draw(child)
+            if Scene.draw(child, head_open and children_open) then   
+              -- imgui.TreePop()
+            end
           end
         end 
-        love.graphics.pop()
+        lg.pop()
+        if children_open then 
+          -- imgui.TreePop()
+        end
 
         -- sort z indexes? 
         if node._needs_sort then 
@@ -457,6 +542,8 @@ Scene = callable {
           node._needs_sort = false
         end 
       end
+
+      return head_open
     end 
   end
 }
@@ -464,28 +551,8 @@ Scene = callable {
 Component("Transform", { x=0, y=0, angle=0, sx=1, sy=1, ox=0, oy=0, kx=0, ky=0 })
 Component("Draw", { color={1,1,1,1}, blendmode={'alpha'} })
 
-System(All("Transform"), {
+sys_tform = System(All("Transform"), {
   order = System.order.pre-1,
-  added = function(ent)
-    local t = ent.Transform
-    t._transform = love.math.newTransform()
-    t._world = love.math.newTransform()
-    -- TODO may need to recalculate to compensate for shear (affine tformation)
-    t.getWorldTranslate = function(t)
-      local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
-      return d, h, l
-    end
-    t.getWorldScale = function(t)
-      local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
-      local sqrt = math.sqrt
-      return sqrt((a*a)+(e*e)+(i*i)), sqrt((b*b)+(f*f)+(j*j)), sqrt((c*c)+(g*g)+(k*k))
-    end
-    t._transform:setTransformation(
-      floor(t.x), floor(t.y), t.angle, 
-      t.sx, t.sy, t.ox, t.oy,
-      t.kx, t.ky
-    )
-  end,
   update = function(ent, dt)
     local t = ent.Transform
     t._transform:setTransformation(

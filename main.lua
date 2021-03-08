@@ -6,16 +6,30 @@ Input.set({
   primary = { 'mouse1' },
 })
 
+Hitbox.reactions = {
+  Bird = {
+    Bullet = 'cross',
+    Wall = 'slide'
+  },
+  Wall = {
+    ['*'] = 'touch'
+  }
+}
+
 Game{
   background_color = "white",
   window_flags = {
     resizable = true
   },
   load = function()
-    Scene.addChild(Bird())
+    Bird()
     Entity{
-      Transform = { x=Game.width/2, y=Game.height/2 },
-      Hitbox = { w=50, h=300 }
+      Transform = { x=Game.width*3/4, y=Game.height/2 },
+      Hitbox = { w=50, h=300, tag="Wall" }
+    }
+    Entity{
+      Transform = { x=Game.width*1/4, y=Game.height/2 },
+      Hitbox = { w=50, h=300, tag="Wall" }
     }
   end
 }
