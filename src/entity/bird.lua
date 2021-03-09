@@ -1,4 +1,4 @@
-Bird = function(is_player)
+function Bird(is_player)
   local components = {
     Transform = { x=Game.width/2, y=Game.height/2 },
     BirdSprite = {},
@@ -8,10 +8,10 @@ Bird = function(is_player)
   if is_player then
     table.update(components, {
       Input = {},
-      Gun = {},
       Movement8 = { max=140 },
       FaceMouse = { sx=true }
     })
+    return Entity(components, Gun(ent))
   end
   return Entity(components) 
 end

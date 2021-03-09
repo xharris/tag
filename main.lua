@@ -23,7 +23,6 @@ Game{
   },
   load = function()
     Bird()
-    Bird()
     Bird(true)
     Entity{
       Transform = { x=Game.width*3/4, y=Game.height/2 },
@@ -35,12 +34,6 @@ Game{
     }
   end
 }
-
-System(All("Rotate"), {
-  update = function(ent, dt)
-    ent.Transform.angle = ent.Transform.angle + ent.Rotate * dt
-  end
-})
 
 System(All("Hitbox"),{
   added = function(ent)

@@ -41,13 +41,17 @@ end
 
 --ENTITY
 Entity = callable {
-  __call = function(_, props)
+  __call = function(_, props, ...)
     if not props.uuid then props.uuid = uuid() end
     for name, prop in pairs(props) do
       Add(props, name, prop)
     end
     local node = Node(props)
     Scene.addChild(node)
+    -- add any child entities
+    for c = 1,select("#", ...) do 
+      node.addChild(select(c, ...))
+    end 
     return node
   end,
   get = function(uuid)
@@ -393,16 +397,11 @@ Node = callable {
       local t = node.Transform
       t._transform = love.math.newTransform()
       t._world = love.math.newTransform()
-      -- TODO may need to recalculate to compensate for shear (affine tformation)
       t.toLocal = function(self, x, y)
         return self._transform:transformPoint(x, y)
       end
       t.toGlobal = function(self, x, y)
         return self._transform:inverseTransformPoint(x, y)
-      end
-      t.getWorldTranslate = function(t)
-        local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
-        return d, h, l
       end
       t.getWorldScale = function(t)
         local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
