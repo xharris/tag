@@ -24,21 +24,26 @@ local spawn
 
 local is_component = {}
 local component_templates = {}
+local template_is_table = {}
 
 local entity_order = {}
 
 local sys_properties = {'added','update','removed','draw','order','dt_mod'}
 
 Component = function(name, template)
-  template._name = name
   is_component[name] = true
-  component_templates[name] = template
+  template_is_table[name] = type(template) == 'table'
+  if template_is_table[name] then 
+    template._name = name
+    component_templates[name] = template 
+  end
 end
 
 --ENTITY
 Entity = callable {
   __call = function(_, props)
-    for name, prop in pairs(props) do 
+    if not props.uuid then props.uuid = uuid() end
+    for name, prop in pairs(props) do
       Add(props, name, prop)
     end
     local node = Node(props)
@@ -111,15 +116,31 @@ function print_query(q, depth)
   return str
 end
 
-function print_entity(ent)
+function print_entity(ent, expand)
   local str = "Entity\t"..ent.uuid..' {'
   local props = {}
-  for k, v in pairs(ent) do 
-    if is_component[k] then 
-      table.insert(props, k)
-    end 
+  if expand then 
+    str = str .. '\n'
+    for k, v in pairs(ent) do 
+      if component_templates[k] then 
+        local cprops = {}
+        for k2,v2 in pairs(v) do 
+          if type(v) == 'table' and k ~= 'children' and type(v) ~= "function" then 
+            table.insert(cprops, '\t\t\t'..k2.."="..tostring(v2))
+          end
+        end
+        table.insert(props, '\t'..k..'\n'..table.join(cprops,'\n'))
+      end 
+    end
+    str = str..table.join(props, '\n')
+  else 
+    for k, v in pairs(ent) do 
+      if is_component[k] then 
+        table.insert(props, k)
+      end 
+    end
+    str = str..table.join(props, ',')..'}'
   end
-  str = str..table.join(props, ',')..'}'
   print(str)
   return str
 end
@@ -131,7 +152,7 @@ One = function(...) return { type="one", args={...} } end
 
 Test = function(query, obj, _not) 
   if type(query) == "string" then
-    is_component[query] = true
+    assert_warn_once(is_component[query], "Component \"", query, "\" is not declared")
     if (_not and obj[query] == nil) or (not _not and obj[query] ~= nil)  then 
       return true 
     end
@@ -181,13 +202,12 @@ _Add = function (ent, k)
   entities[ent.uuid] = ent
   -- make sure component has all default properties
   if k then 
-    if component_templates[k] ~= nil then
+    if is_component[k] then 
       if not ent[k] then 
         ent[k] = copy(component_templates[k])
-      end
-      if type(ent[k]) == 'table' then 
+      elseif template_is_table[k] then
         table.defaults(ent[k], component_templates[k])
-      end 
+      end
     end 
   end
 end 
@@ -567,6 +587,8 @@ System(All("Transform"), {
     )
   end 
 })
+
+Component("RootNode")
 
 System(All("RootNode"), {
   order = "pre",

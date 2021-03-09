@@ -8,7 +8,7 @@ Input.set({
 
 Hitbox.reactions = {
   Bird = {
-    Bullet = 'cross',
+    Bullet = 'touch',
     Wall = 'slide'
   },
   Wall = {
@@ -23,6 +23,8 @@ Game{
   },
   load = function()
     Bird()
+    Bird()
+    Bird(true)
     Entity{
       Transform = { x=Game.width*3/4, y=Game.height/2 },
       Hitbox = { w=50, h=300, tag="Wall" }
@@ -42,10 +44,13 @@ System(All("Rotate"), {
 
 System(All("Hitbox"),{
   added = function(ent)
-    if ent.Hitbox.tag == "Wall" then 
-      ent.Hitbox.drawable = function(self)
+    ent.Hitbox.drawable = function(self)
+      if self.tag == "Wall" then 
         Draw.color("black2")
         Draw.rect("fill", self:getRect())
+      else 
+        Draw.color("gray")
+        Draw.rect("line", self:getRect())
       end
     end
   end

@@ -20,7 +20,15 @@ System(All("Gun", "FaceMouse"), {
         Transform = { x=tx, y=ty, ox=9, oy=3.5, angle=angle },
         Velocity = { x=vx, y=vy },
         Image = "bullet.png",
-        Hitbox = { w=7, h=7, ox=3.5, oy=3.5, tag="Bullet" }
+        Hitbox = { w=7, h=7, ox=3.5, oy=3.5, tag="Bullet", from=ent.Gun.entity, filter=function(item, other)
+          if other.tag == "Bird" then 
+            if other.entityid == ent.uuid then 
+              -- came from the bird that shot the bullet
+              return 'cross'
+            end
+          end
+          return true
+        end }
       }
       Scene.addChild(bullet)
     end 

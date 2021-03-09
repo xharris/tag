@@ -1,0 +1,7 @@
+Component("Input", { left = false, right = false, up = false, down = false, primary = false })
+Component("Movement8", { max=140 })
+Component("FaceMouse", { quadrant=1, vert="up", horiz="left", sx = false, rotate = false })
+Component("BirdSprite")
+Component("DestroyAfterTime")
+Component("Rotate")
+Component("Gun")

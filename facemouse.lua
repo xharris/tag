@@ -1,5 +1,3 @@
-Component("FaceMouse", { quadrant=1, vert="up", horiz="left", sx = false, rotate = false })
-
 System(All("FaceMouse"), {
   update = function(ent, dt)
     local entity = ent

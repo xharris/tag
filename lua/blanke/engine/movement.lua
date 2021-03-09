@@ -1,7 +1,7 @@
 --ENTITY: gravity, velocity
 Component("Velocity", { x = 0, y = 0 })
 System(
-  All("Velocity"),
+  All("Velocity", Not("Hitbox")),
   {
     update = function(ent, dt)
       ent.Transform.x = ent.Transform.x + ent.Velocity.x * dt

@@ -1,3 +1,24 @@
+function warn(...)
+  io.write("[WARN] ",...)
+  io.write('\n')
+end
+function assert_warn(cond, ...)
+  if not cond then 
+    warn(...) 
+    return cond
+  end
+end
+local warnings = {}
+function assert_warn_once(cond, ...)
+  if cond then return end
+  local str = table.join({...},'')
+  if not warnings[str] then 
+    warn(...) 
+    warnings[str] = true
+    return cond
+  end
+end
+
 local changed_cache = {}
 local last_value_cache = {}
 function changed(t, k)

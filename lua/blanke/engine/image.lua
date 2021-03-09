@@ -1,4 +1,5 @@
 --IMAGE: image
+Component("Image") -- imagepath
 System(
   All("Image"),
   {
@@ -47,10 +48,11 @@ Animation = {
 }
 
 local get_animation = function(ani)
-  return Animation.animations[ani.image..'-'..ani.name]
+  return assert(Animation.animations[ani.image..'-'..ani.name], "Animation {image=\""..ani.image.."\", name=\""..ani.name.."\"} not found")
 end
 
 --ANIMATION
+Component("Animation", { image="", name="" })
 System(
   All("Animation"),
   {
