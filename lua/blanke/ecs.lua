@@ -42,6 +42,7 @@ end
 --ENTITY
 Entity = callable {
   __call = function(_, props, ...)
+    props = props or {}
     if not props.uuid then props.uuid = uuid() end
     for name, prop in pairs(props) do
       Add(props, name, prop)
@@ -322,7 +323,9 @@ World = {
     remove_prop = {}
   end,
   draw = function()
-    Scene.draw() 
+    for name, scene in pairs(Scene.scenes) do 
+      Scene.draw(name) 
+    end 
   end,
   drawDebug = function()
     if Game.debug and dbg_canvas then 
@@ -347,6 +350,22 @@ local check_z = function(ent)
     ent.parent._needs_sort = true
   end 
 end 
+
+function SetupTransform(t)
+  t._transform = love.math.newTransform()
+  t._world = love.math.newTransform()
+  t.toLocal = function(self, x, y)
+    return self._transform:transformPoint(x, y)
+  end
+  t.toGlobal = function(self, x, y)
+    return self._transform:inverseTransformPoint(x, y)
+  end
+  t.getWorldScale = function(t)
+    local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
+    local sqrt = math.sqrt
+    return sqrt((a*a)+(e*e)+(i*i)), sqrt((b*b)+(f*f)+(j*j)), sqrt((c*c)+(g*g)+(k*k))
+  end
+end
 
 --NODE
 Node = callable {
@@ -373,6 +392,7 @@ Node = callable {
               table.insert(node.children, child.uuid)
             end 
             child.parent = node
+            child.scene = node.is_scene or node.scene
           end
         end
         return node
@@ -382,6 +402,7 @@ Node = callable {
         for _, child in ipairs({...}) do 
           if child.parent and child.parent.uuid == node.uuid then
             -- remove child uuid from children table
+            child.scene = nil
             table.filter(child.parent.children, function(c)
               return c ~= child.uuid
             end)
@@ -393,22 +414,9 @@ Node = callable {
       if node.drawable then 
         Add(node, "Draw")
       end
-
       local t = node.Transform
-      t._transform = love.math.newTransform()
-      t._world = love.math.newTransform()
-      t.toLocal = function(self, x, y)
-        return self._transform:transformPoint(x, y)
-      end
-      t.toGlobal = function(self, x, y)
-        return self._transform:inverseTransformPoint(x, y)
-      end
-      t.getWorldScale = function(t)
-        local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
-        local sqrt = math.sqrt
-        return sqrt((a*a)+(e*e)+(i*i)), sqrt((b*b)+(f*f)+(j*j)), sqrt((c*c)+(g*g)+(k*k))
-      end
-      t._transform:setTransformation(
+      SetupTransform(t)
+      node.Transform._transform:setTransformation(
         floor(t.x), floor(t.y), t.angle, 
         t.sx, t.sy, t.ox, t.oy,
         t.kx, t.ky
@@ -425,6 +433,9 @@ local draw_node = function(node, transform)
   if node.drawable then 
     lg.push('all') 
     if not node.Draw then Add(node, "Draw") end 
+
+    local drw = node.Draw 
+    if drw.color then Draw.color(drw.color) end 
 
     if type(node.drawable) == 'function' then 
       if transform then 
@@ -445,93 +456,77 @@ end
 --SCENE
 Scene = callable {
   scenes = {},
-  __call = function(_, name)
+  __call = function(_, name, props)
+    if type(name) == "table" and name.scene then 
+      -- using entity as arg 
+      name = name.scene
+    end 
     if Scene.scenes[name] then
       return Scene.scenes[name] 
     else 
-      Scene.scenes[name] = Entity{}
+      Scene.scenes[name] = Node(props)
+      Scene.scenes[name].canvas = Canvas()
+      Scene.scenes[name].is_scene = name
       return Scene.scenes[name]
     end 
   end,
   init = function()
-    if not Scene.node then 
-      Scene.node = Entity{ RootNode=true }
-    end 
+    Scene("root", { RootNode=true })
     if not Scene.canvas then
       Scene.canvas = Canvas()
     end 
   end,
   addChild = function(...)
-    if Scene.node then 
-      return Scene.node.addChild(...)
-    end
+    return Scene("root").addChild(...)
   end,
-  update = function(dt, node, depth)
+  update = function(dt, node)
     if not node then 
-      Scene.update(dt, Scene.node, 0)
+      for name, scene in pairs(Scene.scenes) do 
+        Scene.update(dt, scene, 0)
+      end
     else  
       if node.children then 
         local child 
         for c, cuuid in ipairs(node.children) do 
           child = nodes[cuuid]
+          -- check scene property is correct
+          child.scene = node.is_scene or node.scene 
           child.Transform._world:reset()
           if not node.RootNode then
             child.Transform._world:apply(node.Transform._world)
           end
           child.Transform._world:apply(child.Transform._transform)
-          Scene.update(dt, child, depth + 1)
+          Scene.update(dt, child)
         end 
       end 
     end 
   end,
-  draw = function(node, prev_open)
-    if not node then 
-      if Scene.node then 
-        -- imgui.Begin("Entities")
-        Scene.canvas:renderTo(function()
-          Scene.draw(Scene.node, true)
-        end)
-        local t = Scene.node.Transform
-        draw_node(Scene.canvas, Scene.node.Transform)
-        -- imgui.End()
+  draw = function(scene_name, camera_name)
+    scene_name = scene_name or 'root'
+
+    local scene = Scene(scene_name)
+    local cam = Camera.get(camera_name)
+    local lg = love.graphics
+    Scene.canvas:renderTo(function()
+      if cam then 
+        lg.push()
+        lg.applyTransform(cam._transform)
       end
-    else 
+      Scene._draw(scene, scene)
+      if cam then 
+        lg.pop()
+      end 
+    end)
+    draw_node(Scene.canvas, Scene.scenes.root.Transform)
+  end,
+  _draw = function(node, scene)
+    if node then 
       local lg = love.graphics
       -- draw this node?
-      if not node.RootNode then
-        check_z(node)
+      check_z(node)
+      if node.uuid ~= scene.uuid then
         draw_node(node, node.Transform)
       end
-      
-      -- local head_open, children_open, head_hovered
-      -- if prev_open then
-      --   local title = node.uuid 
-      --   if node._name then 
-      --     title = node._name .. " - " .. title
-      --   end
-      --   head_open = imgui.TreeNode(title)
-      --   head_hovered = imgui.IsItemHovered()
-      --   if head_open then
-      --     if imgui.TreeNode("components") then 
-      --       for k,v in pairs(node) do 
-      --         if k ~= "children"  then
-      --           if k == "parent" then
-      --             imgui.Text(k.." = "..v.uuid)
-      --           elseif imgui.TreeNode(k) then 
-      --             for k, v in pairs(v) do 
-      --               imgui.Text(k..' = '..tostring(v))
-      --             end
-      --             imgui.TreePop()
-      --           end
-      --         end
-      --       end 
-      --       imgui.TreePop()
-      --     end
-      --     if node.children and #node.children > 0 then 
-      --       children_open = imgui.TreeNode("children") 
-      --     end
-      --   end
-      -- end
 
       -- iterate children
       if node.children and node.Transform._transform then 
@@ -539,26 +534,14 @@ Scene = callable {
         if not node.RootNode then 
           lg.applyTransform(node.Transform._transform)
         end
-        -- if head_hovered then 
-        --   Draw.push()
-        --   Draw.color('red')
-        --   Draw.line(-20,-20,20,20)
-        --   Draw.line(-20,20,20,-20)
-        --   Draw.pop()
-        -- end
         local child 
         for c, cuuid in ipairs(node.children) do 
           child = nodes[cuuid]
           if child then 
-            if Scene.draw(child, head_open and children_open) then   
-              imgui.TreePop()
-            end
+            Scene._draw(child, scene) 
           end
         end 
         lg.pop()
-        -- if children_open then 
-        --   imgui.TreePop()
-        -- end
 
         -- sort z indexes? 
         if node._needs_sort then 
@@ -573,7 +556,7 @@ Scene = callable {
 }
 
 Component("Transform", { x=0, y=0, angle=0, sx=1, sy=1, ox=0, oy=0, kx=0, ky=0 })
-Component("Draw", { color={1,1,1,1}, blendmode={'alpha'} })
+Component("Draw", { color=false, blendmode=false, crop=false })
 
 System(All("Transform"), {
   order = System.order.pre-1,

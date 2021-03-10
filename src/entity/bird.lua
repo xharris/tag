@@ -9,7 +9,8 @@ function Bird(is_player)
     table.update(components, {
       Input = {},
       Movement8 = { max=140 },
-      FaceMouse = { sx=true }
+      FaceMouse = { sx=true, camera="player" },
+      Camera = { name="player" }
     })
     return Entity(components, Gun(ent))
   end

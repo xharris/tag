@@ -17,7 +17,7 @@ System(All("Hitbox"),{
     hb.getRect = function(self)
       return world:getRect(self)
     end
-    Scene.addChild(hb)
+    Scene(ent).addChild(hb)
   end
 })
 

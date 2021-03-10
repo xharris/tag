@@ -6,6 +6,7 @@ blanke_require("engine.window")
 blanke_require("engine.canvas")
 blanke_require("engine.timer")
 blanke_require("engine.collision")
+blanke_require("engine.camera")
 
 Game = nil
 Blanke = nil
@@ -310,9 +311,7 @@ do
       love.event.quit(status)
     end,
     res = function(_type, file)
-      if file == nil then
-        error("Game.res(), nil given for " .. _type)
-      end
+      assert(file, "Game.res(), nil given for " .. _type)
       if file:contains(Game.options.res .. "/" .. _type) then
         return file
       end
@@ -377,13 +376,6 @@ do
   local stack = Draw.stack
 
   local _drawGame = function()
-    Draw.push()
-    Draw.reset()
-    Draw.color(Game.options.background_color)
-    love.graphics.applyTransform(Scene.node.Transform._transform)
-    Draw.rect("fill", 0, 0, Game.width, Game.height)
-    Draw.pop()
-
     -- Background.draw()
     -- if Camera.count() > 0 then
     --   Camera.useAll(actual_draw)
@@ -430,6 +422,10 @@ do
       Draw.push()
       Draw.color("black")
       Draw.rect("fill", 0, 0, Window.width, Window.height)
+      
+      Draw.color(Game.options.background_color)
+      love.graphics.applyTransform(Scene("root").Transform._transform)
+      Draw.rect("fill", 0, 0, Game.width, Game.height)
       Draw.pop()
       
       if Game.options.draw then

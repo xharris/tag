@@ -12,7 +12,8 @@ Hitbox.reactions = {
     Wall = 'slide'
   },
   Wall = {
-    ['*'] = 'touch'
+    ['*'] = 'touch',
+    Wall = 'cross'
   }
 }
 
@@ -22,16 +23,35 @@ Game{
     resizable = true
   },
   load = function()
-    Bird()
-    Bird(true)
-    Entity{
-      Transform = { x=Game.width*3/4, y=Game.height/2 },
-      Hitbox = { w=50, h=300, tag="Wall" }
+    local ScnGame = Scene("game")
+    ScnGame.addChild(Bird(true))
+    
+    local objects = {
+      Wall = {
+        fn = Wall,
+        args = { 'x', 'y', 'width', 'height' }
+      }
     }
-    Entity{
-      Transform = { x=Game.width*1/4, y=Game.height/2 },
-      Hitbox = { w=50, h=300, tag="Wall" }
-    }
+
+    local map_test = require(Game.res("map", "test"))
+    for l, layer in ipairs(map_test.layers) do 
+      if layer.type == "objectgroup" then 
+        local info = objects[layer.name]
+        if info then 
+          for o, object in ipairs(layer.objects) do 
+            -- gather function args
+            local args = {}
+            for _, k in ipairs(info.args) do 
+              table.insert(args, object[k])
+            end
+            ScnGame.addChild(info.fn(unpack(args)))
+          end
+        end
+      end
+    end 
+  end,
+  draw = function()
+    Scene.draw("game", "player")
   end
 }
 

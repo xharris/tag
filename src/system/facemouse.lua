@@ -5,8 +5,18 @@ System(All("FaceMouse"), {
     -- you can base the rotation off the position of a different entity
     if fm.use_parent then 
       entity = ent.parent
+      if entity.FaceMouse and not fm.camera then 
+        fm.camera = entity.FaceMouse.camera or fm.camera
+      end 
     end
-    local angle = Math.deg(Math.angle(entity.Transform.x, entity.Transform.y, mouse_x, mouse_y)) + 180
+    local centerx, centery = entity.Transform.x, entity.Transform.y
+    if fm.camera then 
+      local cam = Camera.get(fm.camera)
+      if cam then 
+        centerx, centery = cam:toLocal(centerx, centery)
+      end
+    end
+    local angle = Math.deg(Math.angle(centerx, centery, mouse_x, mouse_y)) + 180
     local quadrant = Math.ceil(angle / 90) -- 1:topleft, 2:topright, 3:bottomright, 4:bottomleft 
     fm.angle = Math.rad(angle - 180)
     fm.quadrant = quadrant
@@ -34,7 +44,7 @@ System(All("FaceMouse"), {
       end 
     end 
     -- z ordering for parent/child
-    if fm.entity and fm.zorder then 
+    if fm.zorder then 
       ent.z = fm.vert == "up" and fm.zorder or -fm.zorder
     end
   end
