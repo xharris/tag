@@ -30,7 +30,7 @@ end
 
 Canvas = function(obj) return setup_canvas(obj or {}) end
 System(All("Canvas"), {
-  added = function(ent)
+  add = function(ent)
     setup_canvas(ent)
     ent.addChild(ent.Canvas)
   end

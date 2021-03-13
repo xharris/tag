@@ -1,11 +1,12 @@
 --ENTITY: gravity, velocity
 Component("Velocity", { x = 0, y = 0 })
 System(
-  All("Velocity", Not("Hitbox")),
+  All("Velocity"),
   {
     update = function(ent, dt)
-      ent.Transform.x = ent.Transform.x + ent.Velocity.x * dt
-      ent.Transform.y = ent.Transform.y + ent.Velocity.y * dt
+      local t, v = ent.Transform, ent.Velocity
+      t.x = t.x + v.x * dt
+      t.y = t.y + v.y * dt
     end
   }
 )
@@ -15,9 +16,10 @@ System(
   All("Gravity", "Velocity"),
   {
     update = function(ent, dt)
+      local v = ent.Velocity
       local gravx, gravy = Math.getXY(ent.Gravity.direction, ent.Gravity.amount)
-      ent.Velocity.x = ent.Velocity.x + gravx
-      ent.Velocity.y = ent.Velocity.y + gravy
+      v.x = v.x + gravx
+      v.y = v.y + gravy
     end
   }
 )

@@ -25,7 +25,16 @@ Game{
   load = function()
     local ScnGame = Scene("game")
     ScnGame.addChild(Bird(true))
+    local bird_cpu = Bird()
+    bird_cpu.Transform.x = Game.width/2 - 40
+    bird_cpu.Transform.y = Game.height/2 - 40
+    ScnGame.addChild(bird_cpu)
     
+    for i = 1, 30 do 
+      io.write((i - 1) % 3 + 1,' ')
+    end
+    io.write('\n')
+
     local objects = {
       Wall = {
         fn = Wall,
@@ -56,14 +65,14 @@ Game{
 }
 
 System(All("Hitbox"),{
-  added = function(ent)
+  add = function(ent)
     ent.Hitbox.drawable = function(self)
       if self.tag == "Wall" then 
         Draw.color("black2")
         Draw.rect("fill", self:getRect())
       else 
-        Draw.color("gray")
-        Draw.rect("line", self:getRect())
+        -- Draw.color("gray")
+        -- Draw.rect("line", self:getRect())
       end
     end
   end

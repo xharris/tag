@@ -1,5 +1,5 @@
 System(All("DestroyAfterTime"),{
-  added = function(ent)
+  add = function(ent)
     ent.DestroyAfterTime.t = 0
   end,
   update = function(ent, dt)

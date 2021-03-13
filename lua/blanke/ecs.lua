@@ -28,7 +28,7 @@ local template_is_table = {}
 
 local entity_order = {}
 
-local sys_properties = {'added','update','removed','draw','order','dt_mod'}
+local sys_properties = {'add','update','remove','draw','order','dt_mod'}
 
 Component = function(name, template)
   is_component[name] = true
@@ -56,6 +56,7 @@ Entity = callable {
     return node
   end,
   get = function(uuid)
+    assert(entities[uuid], "Could not find entity with id \""..uuid.."\"")
     return entities[uuid]
   end 
 }
@@ -67,6 +68,8 @@ System = callable {
     local id = uuid()
     cb.order = nil 
 
+    if type(query) == "string" then query = All(query) end
+
     local sys_info = {
       uuid=id,
       query=query,
@@ -74,8 +77,7 @@ System = callable {
       cb=cb,
       dt_mod=opt.dt_mod,
       entities={},
-      changed={},
-      removed={},
+      remove_entity={},
       has_entity={}
     }
     table.insert(systems, sys_info)
@@ -191,8 +193,8 @@ call_sys_add = function(ent)
       sys.has_entity[ent.uuid] = true
       -- entity fits in this system
       table.insert(sys.entities, ent.uuid)
-      if sys.cb.added then 
-        sys.cb.added(ent) 
+      if sys.cb.add then 
+        sys.cb.add(ent) 
       end 
     end 
   end 
@@ -223,14 +225,45 @@ function Add(ent, k, v)
   if not table.includes(new_entities, ent.uuid) then 
     table.insert(new_entities, ent.uuid)
   end 
+  return ent[k]
 end
 
-local remove_prop = {}
 function Remove(ent, k)
-  for i = 1, table.len(systems) do 
-    systems[i].changed[ent.uuid] = true 
+  if type(ent) == "string" then 
+    ent = Entity.get(ent)
   end 
-  table.insert(remove_prop, {ent,k})
+  -- make entity copy without the removed prop 
+  local fake_ent = {}
+  for k2,v in pairs(ent) do 
+    if is_component[k2] then 
+      fake_ent[k2] = true
+    end
+  end 
+  fake_ent[k] = nil
+  -- iterate systems
+  local sys, ent2
+  for s=1, #systems do 
+    sys = systems[s]
+    local remove = sys.cb.remove
+    table.filter(sys.entities, function(eid)
+      ent2 = entities[eid]
+      if eid == ent.uuid then 
+        if Test(sys.query, fake_ent) then 
+          return true
+        else 
+          if remove then remove(ent2) end 
+          sys.has_entity[eid] = nil 
+          return false
+        end 
+      end
+      return true
+    end)
+  end
+   
+  if ent[k].parent then 
+    ent[k].parent.removeChild(ent[k])
+  end
+  ent[k] = nil
 end 
 
 function Destroy(ent) 
@@ -239,8 +272,8 @@ function Destroy(ent)
   for i = 1, table.len(systems) do 
     sys = systems[i]
     if Test(sys.query, ent) then 
-      sys.removed[ent.uuid] = true 
-      if sys.cb.removed then sys.cb.removed(ent) end 
+      sys.remove_entity[ent.uuid] = true 
+      if sys.cb.remove then sys.cb.remove(ent) end 
     end
   end 
   ent.parent.removeChild(ent)
@@ -260,16 +293,16 @@ World = {
   remove = function(obj) table.insert(dead_entities, obj) end,
   update = function(dt)
     local ent, sys 
-    -- remove dead entities 
+    -- remove dead entities
     for n = 1, table.len(dead_entities) do 
       ent = dead_entities[n]
       for s = 1, table.len(systems) do 
-        sys.removed[ent.uuid] = true
+        sys.remove_entity[ent.uuid] = true
       end 
     end 
     dead_entities = {}
     Scene.update(dt)
-    -- added entities
+    -- add entities
     local new_entities_copy = {unpack(new_entities)}
     new_entities = {}
     for n = 1, table.len(new_entities_copy) do 
@@ -277,50 +310,23 @@ World = {
       call_sys_add(ent)
     end 
     local g_time = floor(Game.time * 1000)
-    for s = 1, table.len(systems) do 
+    for s = 1, #systems do 
       sys = systems[s]
-      local update, removed = sys.cb.update, sys.cb.removed 
-      
-      if update and (not sys.dt_mod or g_time % sys.dt_mod == 0) then 
-        table.filter(sys.entities, function(eid)
-          ent = entities[eid]
-          -- entity was removed from world
-          if sys.removed[eid] then 
-            --if removed then removed(ent) end
-            sys.removed[eid] = nil 
-            return false 
-
-          -- entity property was changed
-          elseif sys.changed[eid] then 
-            sys.changed[eid] = nil 
-            if Test(sys.query, ent) then 
-              -- entity can stay
-              return true 
-            else 
-              -- entity removed from system 
-              --if removed then removed(ent) end
-              sys.has_entity[eid] = nil
-              return false 
-            end 
-          elseif ent then -- if Camera.visible(ent) then
-            update(ent, dt)
-          end 
-          return true            
-        end)
-        -- check for changed entities that were not previously in this system 
-        for eid,_ in pairs(sys.changed) do 
-          if Test(sys.query, entities[eid]) and not table.includes(sys.entities, eid) then
-            table.insert(sys.entities, eid)
-          end 
+      local update, remove = sys.cb.update, sys.cb.remove 
+ 
+      table.filter(sys.entities, function(eid)
+        ent = entities[eid]
+        -- entity was removed from system
+        if not sys.has_entity[eid] then 
+          return false 
+        end
+        -- update entity
+        if update and (not sys.dt_mod or g_time % sys.dt_mod == 0) then -- if Camera.visible(ent) then
+          update(ent, dt)
         end 
-        sys.changed = {}
-      end 
+        return true            
+      end)
     end 
-
-    for r = 1, #remove_prop do
-      remove_prop[1][remove_prop[2]] = nil
-    end 
-    remove_prop = {}
   end,
   draw = function()
     for name, scene in pairs(Scene.scenes) do 
@@ -352,18 +358,27 @@ local check_z = function(ent)
 end 
 
 function SetupTransform(t)
-  t._transform = love.math.newTransform()
-  t._world = love.math.newTransform()
-  t.toLocal = function(self, x, y)
-    return self._transform:transformPoint(x, y)
-  end
-  t.toGlobal = function(self, x, y)
-    return self._transform:inverseTransformPoint(x, y)
-  end
-  t.getWorldScale = function(t)
-    local a, b, c, d, e, f, g, h, i, j, k, l = t._world:getMatrix()
-    local sqrt = math.sqrt
-    return sqrt((a*a)+(e*e)+(i*i)), sqrt((b*b)+(f*f)+(j*j)), sqrt((c*c)+(g*g)+(k*k))
+  if not t._transform then 
+    t._transform = love.math.newTransform()
+    t._world = love.math.newTransform()
+    t.toLocal = function(self, x, y)
+      return self._transform:transformPoint(x, y)
+    end
+    t.toGlobal = function(self, x, y)
+      return self._transform:inverseTransformPoint(x, y)
+    end
+    t.getWorldScale = function(self)
+      local a, b, c, d, e, f, g, h, i, j, k, l = self._world:getMatrix()
+      local sqrt = math.sqrt
+      return sqrt((a*a)+(e*e)+(i*i)), sqrt((b*b)+(f*f)+(j*j)), sqrt((c*c)+(g*g)+(k*k))
+    end
+    t.updateTransform = function(s)
+      s._transform:setTransformation(
+        floor(s.x), floor(s.y), s.angle, 
+        s.sx, s.sy, s.ox, s.oy,
+        s.kx, s.ky
+      )
+    end
   end
 end
 
@@ -393,8 +408,10 @@ Node = callable {
             end 
             child.parent = node
             child.scene = node.is_scene or node.scene
+            child.Transform:updateTransform()
           end
         end
+        node._needs_sort = true
         return node
       end
 
@@ -409,19 +426,18 @@ Node = callable {
           end
         end 
       end
-
-      Add(node, "Transform")
-      if node.drawable then 
-        Add(node, "Draw")
-      end
-      local t = node.Transform
-      SetupTransform(t)
-      node.Transform._transform:setTransformation(
-        floor(t.x), floor(t.y), t.angle, 
-        t.sx, t.sy, t.ox, t.oy,
-        t.kx, t.ky
-      )
     end 
+
+    Add(node, "Transform")
+    Add(node, "Draw")
+    
+    local t = node.Transform
+    SetupTransform(t)
+    node.Transform._transform:setTransformation(
+      floor(t.x), floor(t.y), t.angle, 
+      t.sx, t.sy, t.ox, t.oy,
+      t.kx, t.ky
+    )
 
     return node
   end
@@ -430,13 +446,8 @@ Node = callable {
 -- local spare_tform = love.math.newTransform()
 local draw_node = function(node, transform)
   local lg = love.graphics
+
   if node.drawable then 
-    lg.push('all') 
-    if not node.Draw then Add(node, "Draw") end 
-
-    local drw = node.Draw 
-    if drw.color then Draw.color(drw.color) end 
-
     if type(node.drawable) == 'function' then 
       if transform then 
         lg.applyTransform(transform._transform)
@@ -449,7 +460,6 @@ local draw_node = function(node, transform)
         lg.draw(node.drawable, transform and transform._transform)
       end
     end 
-    lg.pop()
   end
 end
 
@@ -522,15 +532,20 @@ Scene = callable {
   _draw = function(node, scene)
     if node then 
       local lg = love.graphics
+      local drw = node.Draw
+
+      lg.push('all') 
+        
+      if drw.color then Draw.color(drw.color) end 
+
       -- draw this node?
-      check_z(node)
       if node.uuid ~= scene.uuid then
         draw_node(node, node.Transform)
       end
+      check_z(node)
 
       -- iterate children
       if node.children and node.Transform._transform then 
-        lg.push()
         if not node.RootNode then 
           lg.applyTransform(node.Transform._transform)
         end
@@ -541,7 +556,6 @@ Scene = callable {
             Scene._draw(child, scene) 
           end
         end 
-        lg.pop()
 
         -- sort z indexes? 
         if node._needs_sort then 
@@ -549,6 +563,8 @@ Scene = callable {
           node._needs_sort = false
         end 
       end
+
+      lg.pop()
 
       return head_open
     end 
@@ -561,12 +577,7 @@ Component("Draw", { color=false, blendmode=false, crop=false })
 System(All("Transform"), {
   order = System.order.pre-1,
   update = function(ent, dt)
-    local t = ent.Transform
-    t._transform:setTransformation(
-      floor(t.x), floor(t.y), t.angle, 
-      t.sx, t.sy, t.ox, t.oy,
-      t.kx, t.ky
-    )
+    ent.Transform:updateTransform()
   end 
 })
 

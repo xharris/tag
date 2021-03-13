@@ -179,20 +179,13 @@ table.append = function (t, new_t)
   end
 end
 table.filter = function(t, fn)
-  local len = table.len(t)
-  local offset = 0
-  local element
-  for o = 1, len do
-      element = t[o]
-      if element then
-          if fn(element, o) then -- keep element
-              t[o] = nil
-              t[o - offset] = element
-          else -- remove element
-              t[o] = nil
-              offset = offset + 1
-          end
-      end
+  local off = 0
+  local len = #t
+  for i = #t, 1, -1 do 
+    if not fn(t[i], i) then 
+      t[i] = t[#t]
+      t[#t] = nil
+    end
   end
 end
 table.random = function(t)

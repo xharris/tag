@@ -3,7 +3,7 @@ Component("Image") -- imagepath
 System(
   All("Image"),
   {
-    added = function(ent)
+    add = function(ent)
       ent.Image = {
         drawable = Cache.image(ent.Image),
         name = ent.Image
@@ -56,7 +56,7 @@ Component("Animation", { image="", name="" })
 System(
   All("Animation"),
   {
-    added = function(ent)
+    add = function(ent)
       local ani = ent.Animation
       local info = get_animation(ani)
       ani.t = 0
